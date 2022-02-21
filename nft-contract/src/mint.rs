@@ -1,4 +1,30 @@
 use crate::*;
+use near_sdk::{ext_contract, Gas};
+use near_sdk::env::STORAGE_PRICE_PER_BYTE;
+
+// use ed25519_dalek::Signature;
+// use ed25519_dalek::{PublicKey, Verifier};
+
+// 1 Ⓝ in yoctoNEAR
+const PRICE: u128 = 10_000_000_000_000_000_000_000_000;
+// const OWNER_PUBLIC_KEY: &str = "Fwst6GVTdcdZN6CyZkPdvmpKnffcURxBUhUVppgQ5UWG";
+const SHIZO_MEDIA: &str = "https://bafkreidqcnv5kkajvdtkn62r4asevqge3i5xtuno4dbzkbro7kerafqsu4.ipfs.dweb.link";
+const ROYALITY_RECEIVER: &str = "shizotest.testnet";
+const ROYALITY_PERCENTAGE: u32 = 500; // 5%
+const STORAGE_PER_SALE: u128 = 1000 * STORAGE_PRICE_PER_BYTE;
+const GAS_FOR_STORAGE_DEPOSIT: Gas = Gas(15_000_000_000_000);
+const MARKET_ACCOUNT: &str = "market.shizotest.testnet";
+
+
+#[ext_contract(ext_storage_deposit)]
+trait MarketStorageDeposit {
+    //cross contract call to an external contract that is initiated during mintint to deposit storage
+    fn storage_deposit(
+        &mut self,
+        account_id: Option<AccountId>
+    );
+}
+
 
 #[near_bindgen]
 impl Contract {
@@ -6,29 +32,36 @@ impl Contract {
     pub fn nft_mint(
         &mut self,
         token_id: TokenId,
-        metadata: TokenMetadata,
         receiver_id: AccountId,
-        //we add an optional parameter for perpetual royalties
-        perpetual_royalties: Option<HashMap<AccountId, u32>>,
-    ) {
-        //measure the initial storage being used on the contract
-        let initial_storage_usage = env::storage_usage();
+        // signature: String, // signature of the token ID signed by the owner
+    ) -> Promise {
+
+        // TODO: check that the token token_id is mintable
+        // // decode owner public key using base58
+        // let decoded_pb: [u8; 32] = bs58::decode(OWNER_PUBLIC_KEY).into_vec().unwrap().as_slice().try_into().unwrap();
+        // let public_key = PublicKey::from_bytes(&decoded_pb).unwrap();
+
+        // // decode signature using base58
+        // let encoded_signature: [u8;64] = bs58::decode(signature).into_vec().unwrap().as_slice().try_into().unwrap();
+        // let signature = Signature::from_bytes(&encoded_signature).unwrap();
+        // assert!(public_key.verify(token_id.as_bytes(), &signature).is_ok(), "Signature and tokenId not matched");
+
+        let deposit = env::attached_deposit();
+
+        assert!(
+            deposit == PRICE,
+            "Must attach exactly {} yoctoNEAR to cover storage + price",
+            PRICE,
+        );
 
         // create a royalty map to store in the token
         let mut royalty = HashMap::new();
 
-        // if perpetual royalties were passed into the function: 
-        if let Some(perpetual_royalties) = perpetual_royalties {
-            //make sure that the length of the perpetual royalties is below 7 since we won't have enough GAS to pay out that many people
-            assert!(perpetual_royalties.len() < 7, "Cannot add more than 6 perpetual royalty amounts");
+        // add the owner to the royalty map
+        let royalty_receiver: AccountId = ROYALITY_RECEIVER.parse().unwrap();
+        royalty.insert(royalty_receiver, ROYALITY_PERCENTAGE);
 
-            //iterate through the perpetual royalties and insert the account and amount in the royalty map
-            for (account, amount) in perpetual_royalties {
-                royalty.insert(account, amount);
-            }
-        }
-
-        //specify the token struct that contains the owner ID 
+        //specify the token struct that contains the owner ID
         let token = Token {
             //set the owner ID equal to the receiver ID passed into the function
             owner_id: receiver_id,
@@ -45,6 +78,21 @@ impl Contract {
             self.tokens_by_id.insert(&token_id, &token).is_none(),
             "Token already exists"
         );
+
+        let metadata: TokenMetadata = TokenMetadata {
+            title: Some(format!("ShizoTest #{}", token_id)),
+            media: Some(String::from(SHIZO_MEDIA)),
+            description: None,
+            media_hash: None,
+            copies: None,
+            issued_at: None,
+            expires_at: None,
+            starts_at: None,
+            updated_at: None,
+            extra: None,
+            reference: None,
+            reference_hash: None,
+        };
 
         //insert the token ID and metadata
         self.token_metadata_by_id.insert(&token_id, &metadata);
@@ -72,10 +120,13 @@ impl Contract {
         // Log the serialized json.
         env::log_str(&nft_mint_log.to_string());
 
-        //calculate the required storage which was the used - initial
-        let required_storage_in_bytes = env::storage_usage() - initial_storage_usage;
+        let market: AccountId = MARKET_ACCOUNT.parse().unwrap();
 
-        //refund any excess storage if the user attached too much. Panic if they didn't attach enough to cover the required.
-        refund_deposit(required_storage_in_bytes);
+        ext_storage_deposit::storage_deposit(
+            Some(token.owner_id),
+            market, //contract account we're calling
+            STORAGE_PER_SALE, //NEAR deposit we attach to the call
+            GAS_FOR_STORAGE_DEPOSIT, //GAS we're attaching
+        )
     }
 }

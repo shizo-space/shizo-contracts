@@ -13,7 +13,7 @@ pub(crate) fn bytes_for_approved_account_id(account_id: &AccountId) -> u64 {
     account_id.as_str().len() as u64 + 4 + size_of::<u64>() as u64
 }
 
-//refund the storage taken up by passed in approved account IDs and send the funds to the passed in account ID. 
+//refund the storage taken up by passed in approved account IDs and send the funds to the passed in account ID.
 pub(crate) fn refund_approved_account_ids_iter<'a, I>(
     account_id: AccountId,
     approved_account_ids: I, //the approved account IDs must be passed in as an iterator
@@ -63,7 +63,7 @@ pub(crate) fn assert_at_least_one_yocto() {
 }
 
 //refund the initial deposit based on the amount of storage that was used up
-pub(crate) fn refund_deposit(storage_used: u64) {
+pub(crate) fn refund_deposit(storage_used: u64, price: u128) {
     //get how much it would cost to store the information
     let required_cost = env::storage_byte_cost() * Balance::from(storage_used);
     //get the attached deposit
@@ -71,17 +71,20 @@ pub(crate) fn refund_deposit(storage_used: u64) {
 
     //make sure that the attached deposit is greater than or equal to the required cost
     assert!(
-        required_cost <= attached_deposit,
-        "Must attach {} yoctoNEAR to cover storage",
+        required_cost + price <= attached_deposit,
+        "Must attach {} yoctoNEAR to cover storage + price",
         required_cost,
     );
 
     //get the refund amount from the attached deposit - required cost
-    let refund = attached_deposit - required_cost;
+    let refund = attached_deposit - required_cost - price;
 
     //if the refund is greater than 1 yocto NEAR, we refund the predecessor that amount
     if refund > 1 {
         Promise::new(env::predecessor_account_id()).transfer(refund);
+
+        // #transfer funds to another account
+        // Promise::new("aaa".parse::<AccountId>().unwrap()).transfer(price);
     }
 }
 
@@ -108,7 +111,7 @@ impl Contract {
         //we insert the token ID into the set
         tokens_set.insert(token_id);
 
-        //we insert that set for the given account ID. 
+        //we insert that set for the given account ID.
         self.tokens_per_owner.insert(account_id, &tokens_set);
     }
 
@@ -132,7 +135,7 @@ impl Contract {
         if tokens_set.is_empty() {
             self.tokens_per_owner.remove(account_id);
         } else {
-        //if the token set is not empty, we simply insert it back for the account ID. 
+        //if the token set is not empty, we simply insert it back for the account ID.
             self.tokens_per_owner.insert(account_id, &tokens_set);
         }
     }
@@ -186,7 +189,7 @@ impl Contract {
         //we then add the token to the receiver_id's set
         self.internal_add_token_to_owner(receiver_id, token_id);
 
-        //we create a new token struct 
+        //we create a new token struct
         let new_token = Token {
             owner_id: receiver_id.clone(),
             //reset the approval account IDs
@@ -195,10 +198,10 @@ impl Contract {
             //we copy over the royalties from the previous token
             royalty: token.royalty.clone(),
         };
-        //insert that new token into the tokens_by_id, replacing the old entry 
+        //insert that new token into the tokens_by_id, replacing the old entry
         self.tokens_by_id.insert(token_id, &new_token);
 
-        //if there was some memo attached, we log it. 
+        //if there was some memo attached, we log it.
         if let Some(memo) = memo.as_ref() {
             env::log_str(&format!("Memo: {}", memo).to_string());
         }
@@ -233,8 +236,8 @@ impl Contract {
 
         // Log the serialized json.
         env::log_str(&nft_transfer_log.to_string());
-        
+
         //return the preivous token object that was transferred.
         token
     }
-} 
+}

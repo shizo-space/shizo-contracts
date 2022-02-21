@@ -1,10 +1,10 @@
 {
-    "name": "nft-tutorial",
-    "version": "1.0.0",
-    "description": "Zero to Hero NFT Tutorial",
-    "author": "Ben Kurrek",
-    "license": "ISC",
-    "scripts": {
-        "build": "cd nft-contract && ./build.sh && cd .. && ls && cd market-contract && ./build.sh && cd .."
-    }
+  "name": "shizo",
+  "version": "0.1.0",
+  "description": "Shizo Near Contracts",
+  "author": "Shzio",
+  "license": "MIT",
+  "scripts": {
+    "build": "cd nft-contract && ./build.sh && cd .. && ls && cd market-contract && ./build.sh && cd .."
+  }
 }

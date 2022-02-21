@@ -63,7 +63,7 @@ impl NonFungibleTokenCore for Contract {
         //check if the account has been approved already for this token
         let is_new_approval = token
             .approved_account_ids
-            //insert returns none if the key was not present.  
+            //insert returns none if the key was not present.
             .insert(account_id.clone(), approval_id)
             //if the key was not present, .is_none() will return true so it is a new approval.
             .is_none();
@@ -81,11 +81,11 @@ impl NonFungibleTokenCore for Contract {
         //insert the token back into the tokens_by_id collection
         self.tokens_by_id.insert(&token_id, &token);
 
-        //refund any excess storage attached by the user. If the user didn't attach enough, panic. 
-        refund_deposit(storage_used);
+        //refund any excess storage attached by the user. If the user didn't attach enough, panic.
+        refund_deposit(storage_used, 0);
 
         //if some message was passed into the function, we initiate a cross contract call on the
-        //account we're giving access to. 
+        //account we're giving access to.
         if let Some(msg) = msg {
             ext_non_fungible_approval_receiver::nft_on_approve(
                 token_id,
@@ -129,7 +129,7 @@ impl NonFungibleTokenCore for Contract {
 		}
     }
 
-    //revoke a specific account from transferring the token on your behalf 
+    //revoke a specific account from transferring the token on your behalf
     #[payable]
     fn nft_revoke(&mut self, token_id: TokenId, account_id: AccountId) {
         //assert that the user attached exactly 1 yoctoNEAR for security reasons
